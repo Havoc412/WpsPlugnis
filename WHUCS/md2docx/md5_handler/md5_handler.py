@@ -36,7 +36,7 @@ class Md5HandlerAST:
         return [self.title[0], self.img_num]
 
 if __name__ == '__main__':
-    md5_handler = Md5HandlerAST("./test.md")
+    md5_handler = Md5HandlerAST("../example/test.md")
     print(len(md5_handler.tokens))
     for token in md5_handler.tokens:
         print(token)

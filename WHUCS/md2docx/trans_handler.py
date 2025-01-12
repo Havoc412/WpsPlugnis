@@ -11,7 +11,7 @@ class TransHandler:
         self.md5 = Md5HandlerAST(file_path)
         self.docx = DocxHandlerGenerator()
 
-    # def init(self):v
+    # def init(self):
     #     if self.base_file_path is not None:
     #         if self.base_file_path.endswith(".docx"):
     #             self.docx.load(self.base_file_path)
