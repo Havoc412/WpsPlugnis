@@ -1,0 +1,6 @@
+.venv/
+.idea/
+
+WHUCS/data/
+data/
+**/__pycache__/
