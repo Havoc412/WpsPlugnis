@@ -345,89 +345,22 @@ class DocxHandlerGenerator:
                             p.add_run(subchild['children'][0]['raw']).italic = True
 
     def add_table(self, children):
-        # 获取表头和行数
-        header_row = children[0]['children']
-        num_cols = len(header_row)
-        num_rows = len(children)
+        """
+        添加表格 - 当前版本仅显示提示信息
+        :param children: 表格数据
+        """
+        # 输出警告信息
+        print(f"⚠️ 警告: 当前版本不支持完整的表格渲染")
         
-        # 创建一个漂亮的表格
-        table = self.document.add_table(rows=num_rows, cols=num_cols)
-        table.style = 'Table Grid'
-        
-        # 调整表格宽度以适应页面
-        table.autofit = True
-        table.allow_autofit = True
-        
-        # 设置表头样式
-        for i, cell in enumerate(header_row):
-            # 获取表头文本
-            header_text = cell['children'][0]['raw']
-            
-            # 设置表头单元格
-            header_cell = table.cell(0, i)
-            header_cell.text = ""  # 清空默认文本
-            
-            # 添加表头段落和样式
-            header_para = header_cell.paragraphs[0]
-            header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-            # 添加表头文本
-            header_run = header_para.add_run(header_text)
-            header_run.bold = True
-            header_run.font.size = Pt(10)
-            
-            # 设置表头背景色
-            shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="E7E6E6"/>')  # 浅灰色背景
-            header_cell._tc.get_or_add_tcPr().append(shading_elm)
-        
-        # 添加数据行
-        for row_idx, row in enumerate(children[1:], 1):
-            for col_idx, cell in enumerate(row['children']):
-                # 获取单元格文本
-                cell_text = cell['children'][0]['raw']
-                
-                # 设置单元格
-                table_cell = table.cell(row_idx, col_idx)
-                table_cell.text = ""  # 清空默认文本
-                
-                # 添加单元格文本和样式
-                cell_para = table_cell.paragraphs[0]
-                cell_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                cell_run = cell_para.add_run(cell_text)
-                cell_run.font.size = Pt(10)
-                
-                # 交替行颜色
-                if row_idx % 2 == 0:
-                    shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F9F9F9"/>')  # 非常浅的灰色
-                    table_cell._tc.get_or_add_tcPr().append(shading_elm)
-        
-        # 调整表格边框和内边距
-        for row in table.rows:
-            for cell in row.cells:
-                # 设置单元格内边距
-                tc_pr = cell._tc.get_or_add_tcPr()
-                tc_margins = OxmlElement('w:tcMar')
-                
-                for margin in [('top', 100), ('right', 100), ('bottom', 100), ('left', 100)]:
-                    side, val = margin
-                    tc_margin = OxmlElement(f'w:{side}')
-                    tc_margin.set(qn('w:w'), str(val))
-                    tc_margin.set(qn('w:type'), 'dxa')
-                    tc_margins.append(tc_margin)
-                
-                tc_pr.append(tc_margins)
-        
-        # 表格后添加空间
-        self.document.add_paragraph().paragraph_format.space_after = Pt(10)
-
-    def add_horizontal_rule(self):
-        p = self.document.add_paragraph()
-        p.add_run('_' * 50).font.color.rgb = RGBColor(128, 128, 128)
-
-    def add_footnote(self, text):
+        # 添加提示段落
         p = self.document.add_paragraph(style='body')
-        footnote = p.add_footnote()
-        footnote.text = text
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run("表格内容请在Markdown文件中查看")
+        run.bold = True
+        run.font.size = Pt(10)
+        
+        # 添加空间
+        self.document.add_paragraph().paragraph_format.space_after = Pt(6)
 
     def add_math(self, formula, is_inline=False):
         """
