@@ -435,6 +435,8 @@ class DocxHandlerGenerator:
         :param text: 显示的文本
         :param url: 链接地址
         """
+        print(f"⚠️ 警告: 超链接功能未实现: {text} -> {url}")
+        return
         p = self.document.add_paragraph(style='body')
         
         # 创建超链接关系
