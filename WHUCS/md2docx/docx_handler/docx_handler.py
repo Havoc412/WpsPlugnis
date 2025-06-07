@@ -42,6 +42,9 @@ class DocxHandlerGenerator:
         if level == 1:
             self.add_page_break()
 
+        if level == 2 and idx[1] > 1:
+            self.document.add_paragraph()
+
         # CORE
         pa = self.document.add_paragraph(".".join(str(i) for i in idx), style=f'title-{level}-num')
         # ADD：一个前置空格
@@ -302,7 +305,7 @@ class DocxHandlerGenerator:
         p.paragraph_format.right_indent = Pt(20)
         p.paragraph_format.space_before = Pt(10)
         p.paragraph_format.space_after = Pt(10)
-        run = p.add_run('> ')
+        run = p.add_run('“')
         run.font.color.rgb = RGBColor(128, 128, 128)
         for child in children:
             if child['type'] == 'paragraph':
@@ -313,6 +316,8 @@ class DocxHandlerGenerator:
                         p.add_run(subchild['children'][0]['raw']).bold = True
                     elif subchild['type'] == 'emphasis':
                         p.add_run(subchild['children'][0]['raw']).italic = True
+        run = p.add_run('”')
+        run.font.color.rgb = RGBColor(128, 128, 128)
 
     def add_bullet_list(self, items):
         for item in items:

@@ -16,7 +16,7 @@ def check_file_path(file_path):
             exit(1)
 
 
-MD_FILE_PATH = r"../data/cloud/report-1.md"
+MD_FILE_PATH = r"../data/cloud/report-2.md"
 # MD_FILE_PATH = r"./test/testdata/base.md"
 BASE_DOCX_FILE_PATH = None
 

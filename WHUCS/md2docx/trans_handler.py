@@ -33,24 +33,40 @@ class TransHandler:
                         title = token['children'][0]['text']
                     elif 'content' in token['children'][0]:
                         title = token['children'][0]['content']
-                self.docx.add_title(self.md5.get_title(level), title, min(level, 2))
+                self.docx.add_title(self.md5.get_title(level), title, min(level, 3))
             elif token['type'] == 'blank_line':
                 pass
             elif token['type'] == 'paragraph':
-                # 检查段落中是否有删除线文本
-                has_strikethrough = False
-                if 'children' in token:
-                    for child in token['children']:
-                        if child['type'] == 'text' and '~~' in child['raw']:
-                            has_strikethrough = True
-                            break
-                
-                # 打印段落内容，用于调试
-                if has_strikethrough:
-                    print("发现包含删除线的段落:")
-                    print(token)
-                
-                self.docx.add_paragraph_with_runs(token['children'])
+                # 检查段落是否只包含一个图片元素
+                if ('children' in token and len(token['children']) == 1 and 
+                    token['children'][0]['type'] == 'image'):
+                    # 如果段落只包含一个图片，直接处理图片
+                    img_token = token['children'][0]
+                    img_url = img_token['attrs']['url']
+                    text = ''
+                    if 'children' in img_token and img_token['children'] and img_token['children'][0]:
+                        if 'raw' in img_token['children'][0]:
+                            text = img_token['children'][0]['raw']
+                        elif 'text' in img_token['children'][0]:
+                            text = img_token['children'][0]['text']
+                        elif 'content' in img_token['children'][0]:
+                            text = img_token['children'][0]['content']
+                    self.docx.add_picture_with_text(self.md5.get_img_num(), img_url, text)
+                else:
+                    # 检查段落中是否有删除线文本
+                    has_strikethrough = False
+                    if 'children' in token:
+                        for child in token['children']:
+                            if child['type'] == 'text' and '~~' in child['raw']:
+                                has_strikethrough = True
+                                break
+                    
+                    # 打印段落内容，用于调试
+                    if has_strikethrough:
+                        print("发现包含删除线的段落:")
+                        print(token)
+                    
+                    self.docx.add_paragraph_with_runs(token['children'])
             elif token['type'] == 'text':
                 # 处理可能包含删除线的单独文本
                 text = token['raw']
@@ -192,16 +208,8 @@ class TransHandler:
             elif token['type'] == 'softbreak':
                 self.docx.add_text('\n')
             elif token['type'] == 'link':
-                if 'children' in token and token['children'] and 'attrs' in token:
-                    text = ''
-                    if 'raw' in token['children'][0]:
-                        text = token['children'][0]['raw']
-                    elif 'text' in token['children'][0]:
-                        text = token['children'][0]['text']
-                    elif 'content' in token['children'][0]:
-                        text = token['children'][0]['content']
-                    url = token['attrs'].get('url', '')
-                    self.docx.add_hyperlink(text, url)
+                # 暂时跳过超链接处理
+                pass
             else:
                 print(f"Unhandled token type: {token['type']}")
 

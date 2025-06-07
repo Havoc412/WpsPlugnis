@@ -42,6 +42,18 @@ def set_style(document: Document):
     style_title_2_num.font.size = Pt(14)
     style_title_2_num.font.bold = True
 
+    # H3（黑体小四）
+    style_title_3 = document.styles.add_style('title-3', 2)
+    style_title_3.font.name = '黑体'
+    style_title_3._element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+    style_title_3.font.size = Pt(12)
+
+    style_title_3_num = document.styles.add_style('title-3-num', 1)
+    style_title_3_num.font.name = 'Times New Roman'
+    style_title_3_num._element.rPr.rFonts.set(qn('w:eastAsia'), 'Times New Roman')
+    style_title_3_num.font.size = Pt(12)
+    style_title_3_num.font.bold = True
+
     """ Body """
     # 正文（宋体小四、行距23p）
     style_body = document.styles.add_style('body', 1)
@@ -51,16 +63,19 @@ def set_style(document: Document):
     style_body.paragraph_format.line_spacing = Pt(23)  # 行距23磅
 
     """ IMG / Table """
+    # 图表标题（宋体小四）
     style_img_title = document.styles.add_style('img-title', 1)
-    style_img_title.font.name = '黑体'
-    style_img_title._element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+    style_img_title.font.name = '宋体'
+    style_img_title._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
     style_img_title.font.size = Pt(12)
 
+    # 图表标题（宋体小四）
     style_img_title_2 = document.styles.add_style('img-title-2', 2)
-    style_img_title_2.font.name = '黑体'
-    style_img_title_2._element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+    style_img_title_2.font.name = '宋体'
+    style_img_title_2._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
     style_img_title_2.font.size = Pt(12)
 
+    # 图表标题（Times New Roman小四）
     style_img_title_num = document.styles.add_style('img-title-num', 2)
     style_img_title_num.font.name = 'Times New Roman'
     style_img_title_num._element.rPr.rFonts.set(qn('w:eastAsia'), 'Times New Roman')
