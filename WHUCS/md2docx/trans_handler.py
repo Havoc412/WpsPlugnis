@@ -29,15 +29,89 @@ class TransHandler:
             elif token['type'] == 'blank_line':
                 pass
             elif token['type'] == 'paragraph':
-                self.trans(token['children'])
+                # 检查段落中是否有删除线文本
+                has_strikethrough = False
+                if 'children' in token:
+                    for child in token['children']:
+                        if child['type'] == 'text' and '~~' in child['raw']:
+                            has_strikethrough = True
+                            break
+                
+                # 打印段落内容，用于调试
+                if has_strikethrough:
+                    print("发现包含删除线的段落:")
+                    print(token)
+                
+                self.docx.add_paragraph_with_runs(token['children'])
             elif token['type'] == 'text':
-                self.docx.add_text(token['raw'])
+                # 处理可能包含删除线的单独文本
+                text = token['raw']
+                if '~~' in text:
+                    # 使用自定义方法处理带删除线的文本
+                    self.docx.add_text_with_strikethrough(text)
+                else:
+                    self.docx.add_text(text)
             elif token['type'] == 'image':
                 img_url = token['attrs']['url']
                 text = token['children'][0]['raw']
-                self.docx.add_picture_with_text( self.md5.get_img_num(), img_url, text)
+                self.docx.add_picture_with_text(self.md5.get_img_num(), img_url, text)
+            elif token['type'] == 'strong':
+                self.docx.add_bold_text(token['children'][0]['raw'])
+            elif token['type'] == 'em':
+                self.docx.add_italic_text(token['children'][0]['raw'])
+            elif token['type'] == 's':
+                self.docx.add_strikethrough_text(token['children'][0]['raw'])
+            elif token['type'] == 'code':
+                self.docx.add_inline_code(token['raw'])
+            elif token['type'] == 'code_block':
+                self.docx.add_code_block(token['raw'], token['attrs'].get('info', ''))
+            elif token['type'] == 'blockquote':
+                self.docx.add_quote(token['children'])
+            elif token['type'] == 'bullet_list':
+                self.docx.add_bullet_list(token['children'])
+            elif token['type'] == 'ordered_list':
+                self.docx.add_ordered_list(token['children'])
+            elif token['type'] == 'list_item':
+                self.trans(token['children'])
+            elif token['type'] == 'table':
+                self.docx.add_table(token['children'])
+            elif token['type'] == 'thematic_break':
+                self.docx.add_horizontal_rule()
+            elif token['type'] == 'footnote':
+                self.docx.add_footnote(token['children'][0]['raw'])
+            elif token['type'] == 'math':
+                self.docx.add_math(token['raw'], is_inline=token['attrs'].get('inline', False))
+            elif token['type'] == 'emphasis':
+                if 'children' in token and token['children']:
+                    child = token['children'][0]
+                    if 'raw' in child:
+                        self.docx.add_italic_text(child['raw'])
+                    elif 'children' in child:
+                        self.trans(child['children'])
+            elif token['type'] == 'codespan':
+                if 'raw' in token:
+                    self.docx.add_inline_code(token['raw'])
+            elif token['type'] == 'list':
+                if 'children' in token:
+                    if token['attrs'].get('ordered', False):
+                        self.docx.add_ordered_list(token['children'])
+                    else:
+                        self.docx.add_bullet_list(token['children'])
+            elif token['type'] == 'block_quote':
+                if 'children' in token:
+                    self.docx.add_quote(token['children'])
+            elif token['type'] == 'block_code':
+                if 'raw' in token:
+                    self.docx.add_code_block(token['raw'], token['attrs'].get('info', ''))
+            elif token['type'] == 'softbreak':
+                self.docx.add_text('\n')
+            elif token['type'] == 'link':
+                if 'children' in token and token['children'] and 'attrs' in token:
+                    text = token['children'][0].get('raw', '')
+                    url = token['attrs'].get('url', '')
+                    self.docx.add_hyperlink(text, url)
             else:
-                print(token)
+                print(f"Unhandled token type: {token['type']}")
 
     def save(self):
         try:

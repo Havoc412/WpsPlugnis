@@ -1,5 +1,9 @@
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK, WD_COLOR_INDEX
+from docx.shared import Pt, RGBColor
+from docx.oxml.ns import qn, nsdecls
+from docx.oxml import OxmlElement, parse_xml
+import re
 
 from .utils import *
 from .style import cs_lab_report
@@ -49,6 +53,486 @@ class DocxHandlerGenerator:
 
     def add_text(self, text):
         self.document.add_paragraph(cs_lab_report.TEXT_PREFIX + text, style='body')
+
+    def add_text_with_strikethrough(self, text):
+        """
+        处理包含删除线标记的文本
+        :param text: 可能包含~~标记的文本
+        """
+        p = self.document.add_paragraph(style='body')
+        p.add_run(cs_lab_report.TEXT_PREFIX)
+        
+        # 查找所有的删除线部分
+        parts = []
+        start = 0
+        while '~~' in text[start:]:
+            # 找到第一个 ~~
+            first_pos = text.find('~~', start)
+            if first_pos > start:
+                # 添加前面的普通文本
+                parts.append((text[start:first_pos], False))
+            
+            # 找到第二个 ~~
+            second_pos = text.find('~~', first_pos + 2)
+            if second_pos != -1:
+                # 添加删除线文本
+                strikethrough_text = text[first_pos + 2:second_pos]
+                parts.append((strikethrough_text, True))
+                start = second_pos + 2
+            else:
+                # 没有找到第二个~~，将剩余部分作为普通文本
+                parts.append((text[first_pos:], False))
+                break
+        
+        # 添加最后的普通文本
+        if start < len(text):
+            parts.append((text[start:], False))
+        
+        # 添加各部分到段落
+        for part_text, is_strikethrough in parts:
+            run = p.add_run(part_text)
+            if is_strikethrough:
+                run.font.strike = True
+
+    def add_paragraph_with_runs(self, children):
+        """
+        添加包含多种格式的段落
+        :param children: 段落中的子元素列表
+        """
+        p = self.document.add_paragraph(style='body')
+        
+        # 添加段落前缀
+        p.add_run(cs_lab_report.TEXT_PREFIX)
+        
+        for child in children:
+            # 打印类型信息，用于调试
+            print(f"处理段落中的元素类型: {child['type']}")
+            if 'raw' in child:
+                print(f"内容: {child['raw']}")
+            if 'children' in child and child['children']:
+                first_child = child['children'][0]
+                if 'raw' in first_child:
+                    print(f"子元素内容: {first_child['raw']}")
+                    
+            if child['type'] == 'text':
+                # 检查文本是否包含删除线标记
+                text = child['raw']
+                if '~~' in text:
+                    # 使用更复杂的处理逻辑来处理可能包含多个删除线标记的文本
+                    start = 0
+                    while '~~' in text[start:]:
+                        # 找到第一个 ~~
+                        first_pos = text.find('~~', start)
+                        if first_pos > start:
+                            # 添加前面的普通文本
+                            p.add_run(text[start:first_pos])
+                        
+                        # 找到第二个 ~~
+                        second_pos = text.find('~~', first_pos + 2)
+                        if second_pos != -1:
+                            # 添加删除线文本
+                            strikethrough_text = text[first_pos + 2:second_pos]
+                            run = p.add_run(strikethrough_text)
+                            run.font.strike = True
+                            start = second_pos + 2
+                        else:
+                            # 没有找到第二个~~，将剩余部分作为普通文本
+                            p.add_run(text[start:])
+                            break
+                    
+                    # 添加最后的普通文本
+                    if start < len(text):
+                        p.add_run(text[start:])
+                else:
+                    p.add_run(text)
+            elif child['type'] == 'strong':
+                if 'children' in child and child['children']:
+                    run = p.add_run(child['children'][0]['raw'])
+                    run.bold = True
+            elif child['type'] == 'emphasis':
+                if 'children' in child and child['children']:
+                    child_elem = child['children'][0]
+                    if child_elem['type'] == 'text':
+                        run = p.add_run(child_elem['raw'])
+                        run.italic = True
+                    elif child_elem['type'] == 'strong':
+                        # 处理粗斜体
+                        if 'children' in child_elem and child_elem['children']:
+                            run = p.add_run(child_elem['children'][0]['raw'])
+                            run.bold = True
+                            run.italic = True
+            elif child['type'] == 'codespan':
+                if 'raw' in child:
+                    run = p.add_run(child['raw'])
+                    run.font.name = 'Consolas'
+                    run.font.size = Pt(10)
+            elif child['type'] == 's' or child['type'] == 'strikethrough' or child['type'] == 'del':
+                # 处理各种可能的删除线表示
+                if 'children' in child and child['children']:
+                    run = p.add_run(child['children'][0]['raw'])
+                    run.font.strike = True
+                elif 'raw' in child:
+                    run = p.add_run(child['raw'])
+                    run.font.strike = True
+            elif child['type'] == 'softbreak':
+                p.add_run('\n')
+            elif child['type'] == 'link':
+                if 'children' in child and child['children'] and 'attrs' in child:
+                    text = child['children'][0].get('raw', '')
+                    url = child['attrs'].get('url', '')
+                    
+                    # 为超链接创建单独的run
+                    run = p.add_run(text)
+                    run.font.color.rgb = RGBColor(0, 0, 255)  # 蓝色
+                    run.font.underline = True
+                    
+                    # 添加超链接关系
+                    r_id = f'rId{len(self.document.part._rels) + 1}'
+                    self.document.part._rels.add_relationship(
+                        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+                        url,
+                        is_external=True,
+                        rId=r_id
+                    )
+                    
+                    # 设置超链接属性
+                    for e in run._element.xpath('./w:rPr'):
+                        run._element.remove(e)
+                        
+                    # 创建全新的超链接元素
+                    hyperlink = OxmlElement('w:hyperlink')
+                    hyperlink.set(qn('r:id'), r_id)
+                    
+                    # 创建运行元素
+                    new_run = OxmlElement('w:r')
+                    rPr = OxmlElement('w:rPr')
+                    
+                    # 设置样式
+                    rStyle = OxmlElement('w:rStyle')
+                    rStyle.set(qn('w:val'), 'Hyperlink')
+                    rPr.append(rStyle)
+                    
+                    # 设置颜色
+                    color = OxmlElement('w:color')
+                    color.set(qn('w:val'), '0000FF')
+                    rPr.append(color)
+                    
+                    # 设置下划线
+                    u = OxmlElement('w:u')
+                    u.set(qn('w:val'), 'single')
+                    rPr.append(u)
+                    
+                    new_run.append(rPr)
+                    
+                    # 添加文本
+                    t = OxmlElement('w:t')
+                    t.text = text
+                    new_run.append(t)
+                    
+                    # 组装超链接
+                    hyperlink.append(new_run)
+                    
+                    # 替换原来的run
+                    p._p.append(hyperlink)
+
+    def add_bold_text(self, text):
+        p = self.document.add_paragraph(style='body')
+        p.add_run(text).bold = True
+
+    def add_italic_text(self, text):
+        p = self.document.add_paragraph(style='body')
+        p.add_run(text).italic = True
+
+    def add_strikethrough_text(self, text):
+        p = self.document.add_paragraph(style='body')
+        run = p.add_run(text)
+        run.font.strike = True
+
+    def add_inline_code(self, text):
+        p = self.document.add_paragraph(style='body')
+        run = p.add_run(text)
+        run.font.name = 'Consolas'
+        run.font.size = Pt(10)
+        run.font.color.rgb = RGBColor(0, 0, 0)
+
+    def add_code_block(self, code, language=''):
+        # 创建一个有边框和背景色的表格来包含代码
+        table = self.document.add_table(rows=1, cols=1)
+        table.style = 'Table Grid'
+        
+        # 设置表格属性
+        table.autofit = False
+        table.allow_autofit = False
+        
+        # 设置单元格属性
+        cell = table.cell(0, 0)
+        cell.width = self.document.sections[0].page_width - self.document.sections[0].left_margin - self.document.sections[0].right_margin - Pt(40)
+        
+        # 设置背景色为浅灰色
+        shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F5F5F5"/>')
+        cell._tc.get_or_add_tcPr().append(shading_elm)
+        
+        # 添加代码文本
+        paragraph = cell.paragraphs[0]
+        paragraph.style = 'Normal'
+        run = paragraph.add_run(code)
+        run.font.name = 'Consolas'
+        run.font.size = Pt(9)  # 稍微小一点的字体
+        run.font.color.rgb = RGBColor(0, 0, 0)
+        
+        # 减小段落间距
+        paragraph.paragraph_format.space_before = Pt(5)
+        paragraph.paragraph_format.space_after = Pt(5)
+        
+        # 如果有语言标签，添加到代码块上方
+        if language and language.strip():
+            lang_para = self.document.add_paragraph(style='body')
+            lang_para.paragraph_format.space_after = Pt(0)
+            lang_run = lang_para.add_run(language.strip())
+            lang_run.font.size = Pt(8)
+            lang_run.font.color.rgb = RGBColor(128, 128, 128)
+            lang_run.font.italic = True
+            
+        # 添加表格周围的空间
+        self.document.add_paragraph().paragraph_format.space_after = Pt(10)
+
+    def add_quote(self, children):
+        p = self.document.add_paragraph(style='body')
+        p.paragraph_format.left_indent = Pt(20)
+        p.paragraph_format.right_indent = Pt(20)
+        p.paragraph_format.space_before = Pt(10)
+        p.paragraph_format.space_after = Pt(10)
+        run = p.add_run('> ')
+        run.font.color.rgb = RGBColor(128, 128, 128)
+        for child in children:
+            if child['type'] == 'paragraph':
+                for subchild in child['children']:
+                    if subchild['type'] == 'text':
+                        p.add_run(subchild['raw'])
+                    elif subchild['type'] == 'strong':
+                        p.add_run(subchild['children'][0]['raw']).bold = True
+                    elif subchild['type'] == 'emphasis':
+                        p.add_run(subchild['children'][0]['raw']).italic = True
+
+    def add_bullet_list(self, items):
+        for item in items:
+            p = self.document.add_paragraph(style='body')
+            p.paragraph_format.left_indent = Pt(20)
+            p.add_run('• ').bold = True
+            for child in item['children']:
+                if child['type'] == 'block_text':
+                    for subchild in child['children']:
+                        if subchild['type'] == 'text':
+                            p.add_run(subchild['raw'])
+                        elif subchild['type'] == 'strong':
+                            p.add_run(subchild['children'][0]['raw']).bold = True
+                        elif subchild['type'] == 'emphasis':
+                            p.add_run(subchild['children'][0]['raw']).italic = True
+
+    def add_ordered_list(self, items):
+        for i, item in enumerate(items, 1):
+            p = self.document.add_paragraph(style='body')
+            p.paragraph_format.left_indent = Pt(20)
+            p.add_run(f'{i}. ').bold = True
+            for child in item['children']:
+                if child['type'] == 'block_text':
+                    for subchild in child['children']:
+                        if subchild['type'] == 'text':
+                            p.add_run(subchild['raw'])
+                        elif subchild['type'] == 'strong':
+                            p.add_run(subchild['children'][0]['raw']).bold = True
+                        elif subchild['type'] == 'emphasis':
+                            p.add_run(subchild['children'][0]['raw']).italic = True
+
+    def add_table(self, children):
+        # 获取表头和行数
+        header_row = children[0]['children']
+        num_cols = len(header_row)
+        num_rows = len(children)
+        
+        # 创建一个漂亮的表格
+        table = self.document.add_table(rows=num_rows, cols=num_cols)
+        table.style = 'Table Grid'
+        
+        # 调整表格宽度以适应页面
+        table.autofit = True
+        table.allow_autofit = True
+        
+        # 设置表头样式
+        for i, cell in enumerate(header_row):
+            # 获取表头文本
+            header_text = cell['children'][0]['raw']
+            
+            # 设置表头单元格
+            header_cell = table.cell(0, i)
+            header_cell.text = ""  # 清空默认文本
+            
+            # 添加表头段落和样式
+            header_para = header_cell.paragraphs[0]
+            header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # 添加表头文本
+            header_run = header_para.add_run(header_text)
+            header_run.bold = True
+            header_run.font.size = Pt(10)
+            
+            # 设置表头背景色
+            shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="E7E6E6"/>')  # 浅灰色背景
+            header_cell._tc.get_or_add_tcPr().append(shading_elm)
+        
+        # 添加数据行
+        for row_idx, row in enumerate(children[1:], 1):
+            for col_idx, cell in enumerate(row['children']):
+                # 获取单元格文本
+                cell_text = cell['children'][0]['raw']
+                
+                # 设置单元格
+                table_cell = table.cell(row_idx, col_idx)
+                table_cell.text = ""  # 清空默认文本
+                
+                # 添加单元格文本和样式
+                cell_para = table_cell.paragraphs[0]
+                cell_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                cell_run = cell_para.add_run(cell_text)
+                cell_run.font.size = Pt(10)
+                
+                # 交替行颜色
+                if row_idx % 2 == 0:
+                    shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F9F9F9"/>')  # 非常浅的灰色
+                    table_cell._tc.get_or_add_tcPr().append(shading_elm)
+        
+        # 调整表格边框和内边距
+        for row in table.rows:
+            for cell in row.cells:
+                # 设置单元格内边距
+                tc_pr = cell._tc.get_or_add_tcPr()
+                tc_margins = OxmlElement('w:tcMar')
+                
+                for margin in [('top', 100), ('right', 100), ('bottom', 100), ('left', 100)]:
+                    side, val = margin
+                    tc_margin = OxmlElement(f'w:{side}')
+                    tc_margin.set(qn('w:w'), str(val))
+                    tc_margin.set(qn('w:type'), 'dxa')
+                    tc_margins.append(tc_margin)
+                
+                tc_pr.append(tc_margins)
+        
+        # 表格后添加空间
+        self.document.add_paragraph().paragraph_format.space_after = Pt(10)
+
+    def add_horizontal_rule(self):
+        p = self.document.add_paragraph()
+        p.add_run('_' * 50).font.color.rgb = RGBColor(128, 128, 128)
+
+    def add_footnote(self, text):
+        p = self.document.add_paragraph(style='body')
+        footnote = p.add_footnote()
+        footnote.text = text
+
+    def add_math(self, formula, is_inline=False):
+        """
+        添加数学公式，当前版本仅以文本形式输出
+        :param formula: LaTeX格式的公式
+        :param is_inline: 是否为行内公式
+        """
+        # 输出警告信息
+        print(f"⚠️ 警告: 当前版本不支持完整的LaTeX公式渲染: {formula}")
+        
+        # 清理LaTeX公式，去除$和$$符号
+        formula = formula.strip()
+        if formula.startswith('$$') and formula.endswith('$$'):
+            formula = formula[2:-2].strip()
+        elif formula.startswith('$') and formula.endswith('$'):
+            formula = formula[1:-1].strip()
+        
+        # 简单呈现公式
+        if not is_inline:
+            # 块级公式居中显示
+            p = self.document.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # 简单的表格容器
+            table = self.document.add_table(rows=1, cols=1)
+            table.style = 'Table Grid'
+            
+            # 设置单元格
+            cell = table.cell(0, 0)
+            para = cell.paragraphs[0]
+            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # 添加公式文本
+            run = para.add_run(formula)
+            run.font.name = 'Cambria Math'
+            run.font.size = Pt(11)
+            run.font.italic = True
+            
+            # 添加空间
+            self.document.add_paragraph().paragraph_format.space_after = Pt(6)
+        else:
+            # 行内公式
+            p = self.document.add_paragraph(style='body')
+            p.add_run(" ")  # 添加前导空格
+            
+            # 添加行内公式
+            math_run = p.add_run(formula)
+            math_run.font.italic = True
+            
+            p.add_run(" ")  # 添加尾随空格
+
+    def add_hyperlink(self, text, url):
+        """
+        添加超链接
+        :param text: 显示的文本
+        :param url: 链接地址
+        """
+        p = self.document.add_paragraph(style='body')
+        
+        # 创建超链接关系
+        hyperlink = OxmlElement('w:hyperlink')
+        
+        # 创建关系ID
+        r_id = f'rId{len(self.document.part._rels) + 1}'
+        hyperlink.set(qn('r:id'), r_id)
+        
+        # 添加关系
+        self.document.part._rels.add_relationship(
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            url,
+            is_external=True,
+            rId=r_id
+        )
+        
+        # 创建运行元素
+        new_run = OxmlElement('w:r')
+        rPr = OxmlElement('w:rPr')
+        
+        # 设置样式
+        rStyle = OxmlElement('w:rStyle')
+        rStyle.set(qn('w:val'), 'Hyperlink')
+        rPr.append(rStyle)
+        
+        # 设置颜色
+        color = OxmlElement('w:color')
+        color.set(qn('w:val'), '0000FF')
+        rPr.append(color)
+        
+        # 设置下划线
+        u = OxmlElement('w:u')
+        u.set(qn('w:val'), 'single')
+        rPr.append(u)
+        
+        new_run.append(rPr)
+        
+        # 添加文本
+        t = OxmlElement('w:t')
+        t.text = text
+        new_run.append(t)
+        
+        # 组装超链接
+        hyperlink.append(new_run)
+        
+        # 添加到段落
+        p._p.append(hyperlink)
 
     def add_picture_with_text(self, idx, img_url, text):
         pa = self.document.add_paragraph()

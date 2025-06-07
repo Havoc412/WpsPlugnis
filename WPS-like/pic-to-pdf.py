@@ -8,8 +8,8 @@ from PIL import Image
 from fpdf import FPDF
 
 # 设置包含图片文件的目录和输出PDF的文件名
-image_folder = '../data'
-output_pdf = 'output_combined.pdf'
+image_folder = '../data/output'
+output_pdf = 'cp-hav-5-2.pdf'
 
 # 创建一个PDF对象
 pdf = FPDF()

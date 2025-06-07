@@ -27,7 +27,7 @@ def merge_pdfs(directory):
 
 
 # 指定文件夹路径
-folder_path = r"C:\Users\Havoc\Desktop\WHU's tasks\算法设计\课件\extracted"
+folder_path = r"../data"
 
 # 调用函数合并PDF
 merge_pdfs(folder_path)
