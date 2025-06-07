@@ -30,7 +30,20 @@ class DocxHandlerGenerator:
         max_image_width_emu = page_width - left_margin - right_margin
         self.max_image_width_inches = max_image_width_emu / 914400  # EMU to inches conversion (1 inch = 914400 EMU)
 
-    # INFO 后面都是一些具体的功能函数，
+    def _is_last_element_title(self):
+        """
+        检查文档中的最后一个元素是否为标题
+        :return: 如果最后一个元素是标题则返回True，否则返回False
+        """
+        if len(self.document.paragraphs) == 0:
+            return False
+        
+        last_paragraph = self.document.paragraphs[-1]
+        # 检查段落的样式是否包含'title'关键字
+        if last_paragraph.style.name and 'title' in last_paragraph.style.name.lower():
+            return True
+        return False
+
     def add_title(self, idx, title, level):
         """
         添加 CS 要求的标题格式；
@@ -42,7 +55,8 @@ class DocxHandlerGenerator:
         if level == 1:
             self.add_page_break()
 
-        if level == 2 and idx[1] > 1:
+        # 二级标题换页
+        if level == 2 and (idx[1] > 1 or (idx[1] == 1 and not self._is_last_element_title())):
             self.document.add_paragraph()
 
         # CORE
@@ -50,7 +64,7 @@ class DocxHandlerGenerator:
         # ADD：一个前置空格
         pa.add_run(cs_lab_report.TITLE_MID + title, style=f'title-{level}').bold = True
 
-        # UPDATE 这里有些硬编码
+        # UPDATE 一级标题居中
         if level == 1:
             pa.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
@@ -305,8 +319,7 @@ class DocxHandlerGenerator:
         p.paragraph_format.right_indent = Pt(20)
         p.paragraph_format.space_before = Pt(10)
         p.paragraph_format.space_after = Pt(10)
-        run = p.add_run('“')
-        run.font.color.rgb = RGBColor(128, 128, 128)
+        p.add_run('"')
         for child in children:
             if child['type'] == 'paragraph':
                 for subchild in child['children']:
@@ -316,8 +329,7 @@ class DocxHandlerGenerator:
                         p.add_run(subchild['children'][0]['raw']).bold = True
                     elif subchild['type'] == 'emphasis':
                         p.add_run(subchild['children'][0]['raw']).italic = True
-        run = p.add_run('”')
-        run.font.color.rgb = RGBColor(128, 128, 128)
+        p.add_run('"')
 
     def add_bullet_list(self, items):
         for item in items:
